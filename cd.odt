@@ -1,0 +1,73 @@
+Student 
+101,Gaurav,u,s,PCCE,IT,2015,gauravsalunke15@gmail.com,1234567890
+
+certificate
+101,Blockcoderz,PCCE,1,nov/dec,2018,abc
+
+transfer 
+1-> Blockcoderz to gaurav
+
+commands
+
+mkdir -p $GOPATH/src/SecureCertChaincode && cd $GOPATH/src/SecureCertChaincode
+
+vi  secureCertChaincode.go
+
+cd fabric-samples/chaincode-docker-devmode
+ (3 terminals)
+Terminal 1 - Start the network:
+docker-compose -f docker-compose-simple.yaml up
+Terminal 2 - Build & start the chaincode:
+docker exec -it chaincode bash
+
+op: root@d2629980e76b:/opt/gopath/src/chaincode#
+
+cd SecureCertChaincode
+go build
+CORE_PEER_ADDRESS=peer:7052 CORE_CHAINCODE_ID_NAME=mycc:0 ./SecureCertChaincode
+
+Terminal 3 - Use the chaincode
+
+docker exec -it cli bash
+peer chaincode install -p chaincodedev/chaincode/SecureCertChaincode -n mycc -v 0
+peer chaincode instantiate -n mycc -v 0 -c '{"Args":[""]}' -C myc
+
+
+peer chaincode invoke -n mycc -c '{"Args":["addStudent","102","Gaurav","u","s","PCCE","IT","2015","gauravsalunke15","1234567890"]}' -C myc
+peer chaincode invoke -n mycc -c '{"Args":["readStudent", "102"]}' -C myc
+
+peer chaincode invoke -n mycc -c '{"Args":["addCert","101","Blockcoderz","PCCE","2","nov/dec","2018","abc"]}' -C myc
+peer chaincode invoke -n mycc -c '{"Args":["readCert", "2"]}' -C myc
+
+peer chaincode invoke -n mycc -c '{"Args":["transferCert", "2", "Gaurav u s"]}' -C myc
+
+
+
+
+peer chaincode install -n myNewCC -v 1.0 -p github.com/chaincode/
+
+peer chaincode instantiate -o orderer.example.com:7050 --tls --cafile /opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C $CHANNEL_NAME -n mycc -v 0 -c '{"Args":[""]}' -P "AND ('Org1MSP.peer','Org2MSP.peer')"
+
+peer chaincode invoke -o orderer.example.com:7050 --tls true --cafile /opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C $CHANNEL_NAME -n mycc --peerAddresses peer0.org1.example.com:7051 --tlsRootCertFiles /opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/ca.crt --peerAddresses peer0.org2.example.com:7051 --tlsRootCertFiles /opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org2.example.com/peers/peer0.org2.example.com/tls/ca.crt -c '{"Args":["addStudent","102","Gaurav","u","s","PCCE","IT","2015","gauravsalunke15","1234567890"]}'
+
+peer chaincode invoke -o orderer.example.com:7050 -C mychannel -n mycc --peerAddresses peer0.org1.example.com:7051 --peerAddresses peer0.org2.example.com:7051 -c '{"Args":["addStudent","102","Gaurav","u","s","PCCE","IT","2015","gauravsalunke15","1234567890"]}'
+
+
+peer chaincode instantiate -o orderer.example.com:7050 --tls --cafile /opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C $CHANNEL_NAME -n mycc -v 1.0 -c '{"Args":[""]}' -P "OR ('Org1MSP.peer','Org2MSP.peer')"
+peer chaincode instantiate -o orderer.example.com:7050 -C mychannel -n mycc -v 1.0 -c '{"Args":[""]}' -P "AND ('Org1MSP.peer','Org2MSP.peer')"
+
+
+ORDERER_CA=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem
+
+peer channel create -o orderer.example.com:7050 -c firstchannel -f ./channel-artifacts/mychannel.tx --tls --cafile $ORDERER_CA
+
+
+peer chaincode instantiate -o orderer.example.com:7050 --tls --cafile /opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C $CHANNEL_NAME -n mycc -v 0 -c '{"Args":[""]}' -P "OR ('Org1MSP.peer','Org2MSP.peer')" -C myc
+
+
+docker exec cli peer chaincode invoke -o orderer.example.com:7050 --tls --cafile $ORDERER_CA -C $CHANNEL_ONE_NAME -c '{"Args":["addStudent","102","Gaurav","u","s","PCCE","IT","2015","gauravsalunke15","1234567890"]}' -n $FIRST_CHAINCODE_NAME
+docker exec cli peer chaincode invoke -o orderer.example.com:7050 --tls --cafile $ORDERER_CA -C $CHANNEL_ONE_NAME -c '{"Args":["readStudent", "102"]}' -n $FIRST_CHAINCODE_NAME
+docker exec cli peer chaincode invoke -o orderer.example.com:7050 --tls --cafile $ORDERER_CA -C $CHANNEL_ONE_NAME -c '{"Args":["addCert","101","Blockcoderz","PCCE","2","nov/dec","2018","abc"]}' -n $FIRST_CHAINCODE_NAME
+docker exec cli peer chaincode invoke -o orderer.example.com:7050 --tls --cafile $ORDERER_CA -C $CHANNEL_ONE_NAME -c '{"Args":["readCert","2"]}' -n $FIRST_CHAINCODE_NAME
+
+docker exec cli peer chaincode invoke -o orderer.example.com:7050 --tls --cafile $ORDERER_CA -C $CHANNEL_ONE_NAME -c '{"Args":["transferCert", "2", "Gaurav u s"]}' -n $FIRST_CHAINCODE_NAME

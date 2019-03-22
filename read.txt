@@ -1,0 +1,140 @@
+Set the Environment Variables
+Before proceeding to the scripts, for easier usage I’ve used bunch of environment variables that will be used in the scripts. Export them in your terminal before proceeding to the scripts.
+
+export CHANNEL_ONE_NAME=channelone
+export CHANNEL_ONE_PROFILE=ChannelOne
+export CHANNEL_TWO_NAME=channeltwo
+export CHANNEL_TWO_PROFILE=ChannelTwo
+export ORDERER_CA=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem
+
+
+Generate Certificates
+
+We’ll be using the cryptogen tool to generate the certificates for the defined organisations and users. It takes the crypto-config.yaml file as input and generates the certificates in crypto-config folder.
+
+./fabric-samples/bin/cryptogen generate --config=./crypto-config.yaml
+
+
+Generate Genesis Block
+
+After generating the certificates, we have to create the first block of our network which is called the genesis block. We’ll be using the configtxgen tool to generate it from configtx.yaml.
+
+./bin/configtxgen -profile OrdererGenesis -outputBlock ./channel-artifacts/genesis.block
+
+
+Generate Channel Transactions For each channel we will have to create a config transaction which is will be used when creating the channel.
+
+# generate channel configuration transaction for channelone
+./bin/configtxgen -profile ${CHANNEL_ONE_PROFILE} -outputCreateChannelTx ./channel-artifacts/${CHANNEL_ONE_NAME}.tx -channelID $CHANNEL_ONE_NAME
+
+# generate channel configuration transaction for channeltwo
+./bin/configtxgen -profile ${CHANNEL_TWO_PROFILE} -outputCreateChannelTx ./channel-artifacts/${CHANNEL_TWO_NAME}.tx -channelID $CHANNEL_TWO_NAME
+
+
+
+Generate Anchor Peer Update Profile In order to update a peer to anchor peer, we have to create a transaction block signed by the corresponding OrgMSP.
+
+# generate anchor peer for channelone transaction of org1 
+./bin/configtxgen -profile ${CHANNEL_ONE_PROFILE} -outputAnchorPeersUpdate ./channel-artifacts/Org1MSPanchors_${CHANNEL_ONE_NAME}.tx -channelID $CHANNEL_ONE_NAME -asOrg Org1MSP
+
+# generate anchor peer for channelone channel transaction of org2
+./bin/configtxgen -profile ${CHANNEL_ONE_PROFILE} -outputAnchorPeersUpdate ./channel-artifacts/Org2MSPanchors_${CHANNEL_ONE_NAME}.tx -channelID $CHANNEL_ONE_NAME -asOrg Org2MSP
+
+# generate anchor peer for channeltwo transaction of org2
+./bin/configtxgen -profile ${CHANNEL_TWO_PROFILE} -outputAnchorPeersUpdate ./channel-artifacts/Org2MSPanchors_${CHANNEL_TWO_NAME}.tx -channelID $CHANNEL_TWO_NAME -asOrg Org2MS
+
+
+
+
+Starting The Network
+Since we have all the certificates now, we can start all the components of the Fabric network. All we have to do is to start the docker services defined the docker-compose file.
+
+docker-compose -f docker-compose.yml up -d
+After this command is executed successfully, just check if everything is running with the following command.
+
+docker ps
+
+
+
+Creating Channel One as Org1 Peer
+
+The channel creation is done by using the transaction tx that’s created in channel-artifacts folder.
+
+docker exec cli peer channel create -o orderer.example.com:7050 -c $CHANNEL_ONE_NAME -f /opt/gopath/src/github.com/hyperledger/fabric/peer/channel-artifacts/${CHANNEL_ONE_NAME}.tx --tls --cafile $ORDERER_CA
+
+Join the Channel One as Org1 Peer
+
+After you create the channel, a new file named channelone.block will be created in the cli container which will be used to join the peer to the channel.
+
+docker exec cli peer channel join -b ${CHANNEL_ONE_NAME}.block --tls --cafile $ORDERER_CA
+
+Join the Channel One as Org2 Peer
+
+Similarly we’ll change the environment variables to make the cli act as Org2 Peers and join the channel.
+
+docker exec -e "CORE_PEER_LOCALMSPID=Org2MSP" -e "CORE_PEER_TLS_ROOTCERT_FILE=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org2.example.com/peers/peer0.org2.example.com/tls/ca.crt" -e "CORE_PEER_MSPCONFIGPATH=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org2.example.com/users/Admin@org2.example.com/msp" -e "CORE_PEER_ADDRESS=peer0.org2.example.com:7051" cli peer channel join -b ${CHANNEL_ONE_NAME}.block --tls --cafile $ORDERER_CA
+
+Update the Anchor Peers in Channel One
+
+After joining the channel, we’ve to update the peers of each organization that will be acting as the anchor peer. In order to do that we’ll be using the anchorpeerupdate tx file that’s generated.
+
+Org1 Peer
+
+docker exec cli peer channel update -o orderer.example.com:7050 -c $CHANNEL_ONE_NAME -f /opt/gopath/src/github.com/hyperledger/fabric/peer/channel-artifacts/Org1MSPanchors_${CHANNEL_ONE_NAME}.tx --tls --cafile $ORDERER_CA 
+
+Org2 Peer
+
+docker exec  -e "CORE_PEER_LOCALMSPID=Org2MSP" -e "CORE_PEER_TLS_ROOTCERT_FILE=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org2.example.com/peers/peer0.org2.example.com/tls/ca.crt" -e "CORE_PEER_MSPCONFIGPATH=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org2.example.com/users/Admin@org2.example.com/msp" -e "CORE_PEER_ADDRESS=peer0.org2.example.com:7051" cli peer channel update -o orderer.example.com:7050 -c $CHANNEL_ONE_NAME -f /opt/gopath/src/github.com/hyperledger/fabric/peer/channel-artifacts/Org2MSPanchors_${CHANNEL_ONE_NAME}.tx --tls --cafile $ORDERER_CA
+
+Org3 Peer
+
+docker exec  -e "CORE_PEER_LOCALMSPID=Org3MSP" -e "CORE_PEER_TLS_ROOTCERT_FILE=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org3.example.com/peers/peer0.org3.example.com/tls/ca.crt" -e "CORE_PEER_MSPCONFIGPATH=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org3.example.com/users/Admin@org3.example.com/msp" -e "CORE_PEER_ADDRESS=peer0.org3.example.com:7051" cli peer channel update -o orderer.example.com:7050 -c $CHANNEL_ONE_NAME -f /opt/gopath/src/github.com/hyperledger/fabric/peer/channel-artifacts/Org3MSPanchors_${CHANNEL_ONE_NAME}.tx --tls --cafile $ORDERER_CA
+
+Creating Channel Two as Org2 Peer
+
+docker exec -e "CORE_PEER_LOCALMSPID=Org2MSP" -e "CORE_PEER_TLS_ROOTCERT_FILE=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org2.example.com/peers/peer0.org2.example.com/tls/ca.crt" -e "CORE_PEER_MSPCONFIGPATH=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org2.example.com/users/Admin@org2.example.com/msp" -e "CORE_PEER_ADDRESS=peer0.org2.example.com:7051" cli peer channel create -o orderer.example.com:7050 -c $CHANNEL_TWO_NAME -f /opt/gopath/src/github.com/hyperledger/fabric/peer/channel-artifacts/${CHANNEL_TWO_NAME}.tx --tls --cafile $ORDERER_CA
+
+Joining Channel Two as Org2 Peer
+
+docker exec -e "CORE_PEER_LOCALMSPID=Org2MSP" -e "CORE_PEER_TLS_ROOTCERT_FILE=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org2.example.com/peers/peer0.org2.example.com/tls/ca.crt" -e "CORE_PEER_MSPCONFIGPATH=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org2.example.com/users/Admin@org2.example.com/msp" -e "CORE_PEER_ADDRESS=peer0.org2.example.com:7051" cli peer channel join -b ${CHANNEL_TWO_NAME}.block --tls --cafile $ORDERER_CA
+
+Update the Anchor Peers in Channel Two
+
+docker exec -e "CORE_PEER_LOCALMSPID=Org2MSP" -e "CORE_PEER_TLS_ROOTCERT_FILE=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org2.example.com/peers/peer0.org2.example.com/tls/ca.crt" -e "CORE_PEER_MSPCONFIGPATH=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org2.example.com/users/Admin@org2.example.com/msp" -e "CORE_PEER_ADDRESS=peer0.org2.example.com:7051" cli peer channel update -o orderer.example.com:7050 -c $CHANNEL_TWO_NAME -f /opt/gopath/src/github.com/hyperledger/fabric/peer/channel-artifacts/Org2MSPanchors_${CHANNEL_TWO_NAME}.tx --tls --cafile $ORDERER_CA
+
+
+Export Chaincode Name And Location Variables
+
+We’ll store the chaincode name and the path in the environment variable to access it easily
+
+export FIRST_CHAINCODE_NAME="firstchaincode"
+export FIRST_CHAINCODE_SRC="github.com/chaincode/one"
+export SECOND_CHAINCODE_NAME="secondchaincode"
+export SECOND_CHAINCODE_SRC="github.com/chaincode/two"
+export CHAINCODE_VERSION="1.0"
+
+
+Install Chaincode (firstchaincode) in Org1 Peer
+
+For installing the chaincode we’ll use peer chaincode install command, and we have to pass the name, location and the version of the chaincode to be installed. This process will install the runtime for the chaincode.
+
+docker exec cli peer chaincode install -n $FIRST_CHAINCODE_NAME -p $FIRST_CHAINCODE_SRC -v $CHAINCODE_VERSION
+Instantiate Chaincode (firstchaincode) in Org1 Peer
+
+After installing the chaincode runtime, we have to instantiate to make it functional. This command needs TLS signing for the verification of the installer. The chaincode will be instantiated in the channelone of the network,
+
+docker exec cli peer chaincode instantiate -o orderer.example.com:7050 --tls --cafile $ORDERER_CA -C $CHANNEL_ONE_NAME -c '{"Args":[]}' -n $FIRST_CHAINCODE_NAME -v $CHAINCODE_VERSION -P "OR('Org1MSP.member', 'Org2MSP.member')"
+Install Chaincode (firstchaincode) in Org2 Peer
+
+docker exec -e "CORE_PEER_LOCALMSPID=Org2MSP" -e "CORE_PEER_TLS_ROOTCERT_FILE=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org2.example.com/peers/peer0.org2.example.com/tls/ca.crt" -e "CORE_PEER_MSPCONFIGPATH=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org2.example.com/users/Admin@org2.example.com/msp" -e "CORE_PEER_ADDRESS=peer0.org2.example.com:7051" cli peer chaincode install -n $FIRST_CHAINCODE_NAME -p $FIRST_CHAINCODE_SRC -v $CHAINCODE_VERSION
+Instantiate Chaincode (firstchaincode) in Org2 Peer
+
+docker exec -e "CORE_PEER_LOCALMSPID=Org2MSP" -e "CORE_PEER_TLS_ROOTCERT_FILE=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org2.example.com/peers/peer0.org2.example.com/tls/ca.crt" -e "CORE_PEER_MSPCONFIGPATH=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org2.example.com/users/Admin@org2.example.com/msp" -e "CORE_PEER_ADDRESS=peer0.org2.example.com:7051" cli peer chaincode instantiate -o orderer.example.com:7050 --tls --cafile $ORDERER_CA -C $CHANNEL_ONE_NAME -c '{"Args":[]}' -n $FIRST_CHAINCODE_NAME -v $CHAINCODE_VERSION -P "OR('Org1MSP.member', 'Org2MSP.member')"
+Install & Instantiate (secondchaincode) in Org2 Peer
+
+The second chaincode is the private one (Like admin chaincode). This will be installed in only a specific organisation which will have rights to share the data. Thus in our scenario, we’ll install it only in Org2 peers and in channeltwo of the network.
+
+docker exec  -e "CORE_PEER_LOCALMSPID=Org2MSP" -e "CORE_PEER_TLS_ROOTCERT_FILE=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org2.example.com/peers/peer0.org2.example.com/tls/ca.crt" -e "CORE_PEER_MSPCONFIGPATH=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org2.example.com/users/Admin@org2.example.com/msp" -e "CORE_PEER_ADDRESS=peer0.org2.example.com:7051" cli peer chaincode install -n $SECOND_CHAINCODE_NAME -p $SECOND_CHAINCODE_SRC -v $CHAINCODE_VERSION
+
+docker exec -e "CORE_PEER_LOCALMSPID=Org2MSP" -e "CORE_PEER_TLS_ROOTCERT_FILE=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org2.example.com/peers/peer0.org2.example.com/tls/ca.crt" -e "CORE_PEER_MSPCONFIGPATH=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org2.example.com/users/Admin@org2.example.com/msp" -e "CORE_PEER_ADDRESS=peer0.org2.example.com:7051" cli peer chaincode instantiate -o orderer.example.com:7050 --tls --cafile $ORDERER_CA -C $CHANNEL_TWO_NAME -c '{"Args":[]}' -n $SECOND_CHAINCODE_NAME -v $CHAINCODE_VERSION -P "OR('Org1MSP.member', 'Org2MSP.member')"
+With this part our entire network setup is over and we’re good to test the network. If we look at the couchdb admin, it’ll have the database for the corresponding channels and the chaincodes.
