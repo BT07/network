@@ -65,7 +65,7 @@ peer channel create -o orderer.example.com:7050 -c firstchannel -f ./channel-art
 peer chaincode instantiate -o orderer.example.com:7050 --tls --cafile /opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C $CHANNEL_NAME -n mycc -v 0 -c '{"Args":[""]}' -P "OR ('Org1MSP.peer','Org2MSP.peer')" -C myc
 
 
-docker exec cli peer chaincode invoke -o orderer.example.com:7050 --tls --cafile $ORDERER_CA -C $CHANNEL_ONE_NAME -c '{"Args":["addStudent","102","Gaurav","u","s","PCCE","IT","2015","gauravsalunke15","1234567890"]}' -n $FIRST_CHAINCODE_NAME
+docker exec cli peer chaincode invoke -o orderer.example.com:7050 --tls --cafile $ORDERER_CA -C $CHANNEL_ONE_NAME -c '{"function":"addCert","Args":["101","PCCE","101","nov/dec","2018","abc"]}' -n $FIRST_CHAINCODE_NAME
 docker exec cli peer chaincode invoke -o orderer.example.com:7050 --tls --cafile $ORDERER_CA -C $CHANNEL_ONE_NAME -c '{"Args":["readStudent", "102"]}' -n $FIRST_CHAINCODE_NAME
 docker exec cli peer chaincode invoke -o orderer.example.com:7050 --tls --cafile $ORDERER_CA -C $CHANNEL_ONE_NAME -c '{"Args":["addCert","101","Blockcoderz","PCCE","2","nov/dec","2018","abc"]}' -n $FIRST_CHAINCODE_NAME
 docker exec cli peer chaincode invoke -o orderer.example.com:7050 --tls --cafile $ORDERER_CA -C $CHANNEL_ONE_NAME -c '{"Args":["readCert","2"]}' -n $FIRST_CHAINCODE_NAME

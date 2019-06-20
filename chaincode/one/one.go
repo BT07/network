@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/hyperledger/fabric/core/chaincode/shim"
 	pb "github.com/hyperledger/fabric/protos/peer"
@@ -29,6 +30,7 @@ type student struct {
 	Year_Of_Admission string `json:"Year_Of_Admission"`
 	Email_Id          string `json:"Email_Id"`
 	Mobile            string `json:"Mobile"`
+	Role              string `json:"Role"`
 }
 
 type cert struct {
@@ -40,10 +42,10 @@ type cert struct {
 	Year_Of_Passing string `json:"Year_Of_Passing"`
 	Sub             string `json:"Sub"`
 }
-
 type user struct {
 	Username string `json:"Username"`
 	Password string `json:"Password"`
+	Role     string `json:"Role"`
 }
 
 // ===========================
@@ -87,6 +89,8 @@ func (t *SimpleChaincode) Invoke(APIstub shim.ChaincodeStubInterface) pb.Respons
 		return t.uniCredentials(APIstub, args)
 	} else if function == "creatorCredentials" {
 		return t.creatorCredentials(APIstub, args)
+	} else if function == "getHistoryForCert" { //get history of certificate
+		return t.getHistoryForCert(APIstub, args)
 	}
 	return shim.Error("Received unknown function invocation")
 
@@ -118,27 +122,12 @@ Will add test data (10 cert catches)to our network
 */
 //PR_no,Student_Name,Seat_no,College_Name,Examination,Year_Of_Passing,Sub
 func (t *SimpleChaincode) initLedger(APIstub shim.ChaincodeStubInterface, args []string) pb.Response {
-	Cert := []cert{
-		cert{PR_no: "101", Student_Name: "Gaurav1", Seat_no: "1", College_Name: "PCCE", Examination: "may/june", Year_Of_Passing: "2019", Sub: "abc"},
-		cert{PR_no: "102", Student_Name: "Gaurav2", Seat_no: "2", College_Name: "PCCE", Examination: "may/june", Year_Of_Passing: "2019", Sub: "abc"},
-		cert{PR_no: "103", Student_Name: "Gaurav3", Seat_no: "3", College_Name: "PCCE", Examination: "may/june", Year_Of_Passing: "2019", Sub: "abc"},
-		cert{PR_no: "104", Student_Name: "Gaurav4", Seat_no: "4", College_Name: "PCCE", Examination: "may/june", Year_Of_Passing: "2019", Sub: "abc"},
-	}
-
-	i := 0
-	for i < len(Cert) {
-		fmt.Println("i is ", i)
-		valAsBytes, _ := json.Marshal(Cert[i])
-		APIstub.PutState(strconv.Itoa(i+1), valAsBytes)
-		fmt.Println("Added", Cert[i])
-		i = i + 1
-	}
 
 	// ==== Create student object and marshal to JSON ====
-	student := &student{"123", "123", "G", "U", "S", "PCCE", "IT", "2015", "g@gmail.com", "8007067665"}
+	student := &student{"201916721", "201916721", "Gaurav", "U", "Salunke", "PCCE", "IT", "2015", "gauravsal15@gmail.com", "8007067665", "2"}
 	studentJSONasBytes, _ := json.Marshal(student)
 	// === Save student to state ===
-	APIstub.PutState("123", studentJSONasBytes)
+	APIstub.PutState("201916721", studentJSONasBytes)
 
 	return shim.Success(nil)
 }
@@ -224,7 +213,7 @@ func (t *SimpleChaincode) addCert(APIstub shim.ChaincodeStubInterface, args []st
 	if err != nil {
 		return shim.Error("Failed to get certificate: " + err.Error())
 	} else if certAsBytes != nil {
-		return shim.Error("This certificate already exists: " + PRno)
+		return shim.Error("This certificate already exists: " + Seatno)
 	}
 
 	// ==== Create certificate object and marshal to JSON ====
@@ -330,7 +319,7 @@ func (t *SimpleChaincode) addStudent(APIstub shim.ChaincodeStubInterface, args [
 	}
 
 	// ==== Create student object and marshal to JSON ====
-	student := &student{PRno, password, FName, MName, LName, CName, branch, YOA, EId, mobile}
+	student := &student{PRno, password, FName, MName, LName, CName, branch, YOA, EId, mobile, "2"}
 	studentJSONasBytes, err := json.Marshal(student)
 	if err != nil {
 		return shim.Error(err.Error())
@@ -374,11 +363,12 @@ func (t *SimpleChaincode) readStudent(APIstub shim.ChaincodeStubInterface, args 
 func (t *SimpleChaincode) login(APIstub shim.ChaincodeStubInterface, args []string) pb.Response {
 	//   0       1
 	// "prno", "password"
-	if len(args) < 2 {
+	if len(args) < 3 {
 		return shim.Error("Incorrect number of arguments. Expecting 2")
 	}
 	prno := args[0]
 	password := args[1]
+	role := args[2]
 	studentAsBytes, err := APIstub.GetState(prno)
 	if err != nil {
 		opJSONasBytes, _ := json.Marshal("failure")
@@ -391,13 +381,42 @@ func (t *SimpleChaincode) login(APIstub shim.ChaincodeStubInterface, args []stri
 		return shim.Success(opJSONasBytes)
 	}
 
-	studentAuthentication := student{}
+	studentAuthentication := user{}
 	json.Unmarshal(studentAsBytes, &studentAuthentication) //unmarshal it aka JSON.parse()
 
 	if studentAuthentication.Password == password {
-		opJSONasBytes, _ := json.Marshal("success")
+		if role == "0" {
+			if studentAuthentication.Role == role {
+				opJSONasBytes, _ := json.Marshal("success")
+				return shim.Success(opJSONasBytes)
+			} else {
+				opJSONasBytes, _ := json.Marshal("failure")
+				return shim.Success(opJSONasBytes)
 
-		return shim.Success(opJSONasBytes)
+			}
+		} else if role == "1" {
+			if studentAuthentication.Role == role {
+				opJSONasBytes, _ := json.Marshal("success")
+				return shim.Success(opJSONasBytes)
+			} else {
+				opJSONasBytes, _ := json.Marshal("failure")
+				return shim.Success(opJSONasBytes)
+
+			}
+		} else if role == "2" {
+			if studentAuthentication.Role == role {
+				opJSONasBytes, _ := json.Marshal("success")
+				return shim.Success(opJSONasBytes)
+			} else {
+				opJSONasBytes, _ := json.Marshal("failure")
+				return shim.Success(opJSONasBytes)
+
+			}
+		} else {
+			opJSONasBytes, _ := json.Marshal("failure")
+
+			return shim.Success(opJSONasBytes)
+		}
 	} else {
 		opJSONasBytes, _ := json.Marshal("failure")
 
@@ -409,7 +428,7 @@ func (t *SimpleChaincode) login(APIstub shim.ChaincodeStubInterface, args []stri
 //Username, Password
 func (t *SimpleChaincode) uniCredentials(APIstub shim.ChaincodeStubInterface, args []string) pb.Response {
 
-	if len(args) != 2 {
+	if len(args) != 3 {
 		return shim.Error("Incorrect number of arguments. Expecting 2")
 	}
 	if len(args[0]) <= 0 {
@@ -418,22 +437,25 @@ func (t *SimpleChaincode) uniCredentials(APIstub shim.ChaincodeStubInterface, ar
 	if len(args[1]) <= 0 {
 		return shim.Error("2 argument must be a non-empty string")
 	}
+	if len(args[2]) <= 0 {
+		return shim.Error("2 argument must be a non-empty string")
+	}
 
 	Username := args[0]
 	Password := args[1]
-
+	Role := args[2]
 	// ==== Check if credentials already exists ====
 	credentialAsBytes, err := APIstub.GetState(Username)
 	if err != nil {
 		return shim.Error("Failed to get credentials: " + err.Error())
-	} else if credentialsAsBytes != nil {
+	} else if credentialAsBytes != nil {
 		return shim.Error("This credentials already exists: " + Username)
 	}
 
 	// ==== Create certificate object and marshal to JSON ====
-	universityLogin := &user{Username, Password}
+	universityLogin := &user{Username, Password, Role}
 
-	credentialJSONasBytes, err := json.Marshal(user)
+	credentialJSONasBytes, err := json.Marshal(universityLogin)
 	err = APIstub.PutState(Username, credentialJSONasBytes)
 	if err != nil {
 		return shim.Error(fmt.Sprintf("Failed to add university credentials: %s", Username))
@@ -446,7 +468,7 @@ func (t *SimpleChaincode) uniCredentials(APIstub shim.ChaincodeStubInterface, ar
 //Username, Password
 func (t *SimpleChaincode) creatorCredentials(APIstub shim.ChaincodeStubInterface, args []string) pb.Response {
 
-	if len(args) != 2 {
+	if len(args) != 3 {
 		return shim.Error("Incorrect number of arguments. Expecting 2")
 	}
 	if len(args[0]) <= 0 {
@@ -455,26 +477,93 @@ func (t *SimpleChaincode) creatorCredentials(APIstub shim.ChaincodeStubInterface
 	if len(args[1]) <= 0 {
 		return shim.Error("2 argument must be a non-empty string")
 	}
+	if len(args[2]) <= 0 {
+		return shim.Error("2 argument must be a non-empty string")
+	}
 
 	Username := args[0]
 	Password := args[1]
+	Role := args[2]
 
 	// ==== Check if credentials already exists ====
 	credentialAsBytes, err := APIstub.GetState(Username)
 	if err != nil {
 		return shim.Error("Failed to get credentials: " + err.Error())
-	} else if credentialsAsBytes != nil {
+	} else if credentialAsBytes != nil {
 		return shim.Error("This credentials already exists: " + Username)
 	}
 
 	// ==== Create certificate object and marshal to JSON ====
-	creatorLogin := &user{Username, Password}
+	creatorLogin := &user{Username, Password, Role}
 
-	credentialJSONasBytes, err := json.Marshal(user)
+	credentialJSONasBytes, err := json.Marshal(creatorLogin)
 	err = APIstub.PutState(Username, credentialJSONasBytes)
 	if err != nil {
 		return shim.Error(fmt.Sprintf("Failed to add creator credentials: %s", Username))
 	}
 
 	return shim.Success(nil)
+}
+
+//
+func (t *SimpleChaincode) getHistoryForCert(APIstub shim.ChaincodeStubInterface, args []string) pb.Response {
+
+	if len(args) < 1 {
+		return shim.Error("Incorrect number of arguments. Expecting 1")
+	}
+
+	seatno := args[0]
+
+	resultsIterator, err := APIstub.GetHistoryForKey(seatno)
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+	defer resultsIterator.Close()
+
+	var buffer bytes.Buffer
+	buffer.WriteString("[")
+
+	bArrayMemberAlreadyWritten := false
+	for resultsIterator.HasNext() {
+		response, err := resultsIterator.Next()
+		if err != nil {
+			return shim.Error(err.Error())
+		}
+		// Add a comma before array members, suppress it for the first array member
+		if bArrayMemberAlreadyWritten == true {
+			buffer.WriteString(",")
+		}
+		buffer.WriteString("{\"TxId\":")
+		buffer.WriteString("\"")
+		buffer.WriteString(response.TxId)
+		buffer.WriteString("\"")
+
+		buffer.WriteString(", \"Value\":")
+		// if it was a delete operation on given key, then we need to set the
+		//corresponding value null. Else, we will write the response.Value
+
+		if response.IsDelete {
+			buffer.WriteString("null")
+		} else {
+			buffer.WriteString(string(response.Value))
+		}
+
+		buffer.WriteString(", \"Timestamp\":")
+		buffer.WriteString("\"")
+		buffer.WriteString(time.Unix(response.Timestamp.Seconds, int64(response.Timestamp.Nanos)).String())
+		buffer.WriteString("\"")
+
+		buffer.WriteString(", \"IsDelete\":")
+		buffer.WriteString("\"")
+		buffer.WriteString(strconv.FormatBool(response.IsDelete))
+		buffer.WriteString("\"")
+
+		buffer.WriteString("}")
+		bArrayMemberAlreadyWritten = true
+	}
+	buffer.WriteString("]")
+
+	fmt.Printf("- getHistoryForCert returning:\n%s\n", buffer.String())
+
+	return shim.Success(buffer.Bytes())
 }

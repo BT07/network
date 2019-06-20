@@ -7,9 +7,11 @@
         "test": "echo \"Error: no test specified\" && exit 1"
     },
     "dependencies": {
+        "cors": "^2.8.5",
         "fabric-ca-client": "~1.1.0",
         "fabric-client": "^1.1.2",
-        "grpc": "^1.18.0"
+        "grpc": "^1.21.1",
+        "nodemailer": "^6.2.1"
     },
     "author": "Anthony O'Dowd",
     "license": "Apache-2.0",
