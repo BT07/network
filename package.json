@@ -10,7 +10,7 @@
         "cors": "^2.8.5",
         "fabric-ca-client": "~1.1.0",
         "fabric-client": "^1.1.2",
-        "grpc": "^1.21.1",
+        "grpc": "^1.24.9",
         "nodemailer": "^6.2.1"
     },
     "author": "Anthony O'Dowd",
